@@ -47,7 +47,7 @@ func main() {
 		log.Fatalf("path '%v' does not exist", dir)
 	}
 
-	s := server.New(dir)
+	s := server.New(dir, port)
 	go s.WatchDir()
 
 	fmt.Printf("Serving %v on %v\n\n", abspath, port)

@@ -18,12 +18,14 @@ import (
 type LiveServer struct {
 	ActiveWS *websocket.Conn
 	Dir      string
+	Port     int
 }
 
-func New(dir string) *LiveServer {
+func New(dir string, port int) *LiveServer {
 	return &LiveServer{
 		ActiveWS: nil,
 		Dir:      dir,
+		Port:     port,
 	}
 }
 
@@ -96,7 +98,7 @@ func (s *LiveServer) HandleWS(ws *websocket.Conn) {
 	}
 }
 
-func injectSocketReload(s string) string {
+func injectSocketReload(s string, port int) string {
 	rx, err := regexp.Compile("</body>")
 	if err != nil {
 		log.Fatal(err)
@@ -108,13 +110,14 @@ func injectSocketReload(s string) string {
 		return s
 	}
 
-	js := `
+	js := fmt.Sprintf(`
 <script>
-let ws = new WebSocket("ws://localhost:8080/ws");
+let ws = new WebSocket("ws://localhost:%v/ws");
 ws.onmessage = (event) => {window.location.reload(true)}
 </script>
 
-    `
+    `, port)
+
 	return s[:oglog[0]] + js + s[oglog[0]:]
 }
 
@@ -140,6 +143,6 @@ func (s *LiveServer) Static(w http.ResponseWriter, r *http.Request) {
 		log.Fatal(err)
 	}
 	b, _ := io.ReadAll(f)
-	str := injectSocketReload(string(b))
+	str := injectSocketReload(string(b), s.Port)
 	fmt.Fprint(w, str)
 }
