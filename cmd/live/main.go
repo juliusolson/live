@@ -4,12 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 
 	"github.com/juliusolson/live/server"
-	"golang.org/x/net/websocket"
 )
 
 func main() {
@@ -31,12 +29,8 @@ func main() {
 	}
 
 	s := server.New(dir, port)
+
 	go s.WatchDir()
-
 	fmt.Printf("Serving %v on %v\n\n", abspath, port)
-	fmt.Printf("Event log:\n==========\n")
-
-	http.HandleFunc("/", s.Static)
-	http.Handle("/ws", websocket.Handler(s.HandleWS))
-	http.ListenAndServe(fmt.Sprintf(":%v", port), nil)
+	log.Fatal(s.Listen())
 }

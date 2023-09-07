@@ -22,11 +22,19 @@ type LiveServer struct {
 }
 
 func New(dir string, port int) *LiveServer {
-	return &LiveServer{
+	s := &LiveServer{
 		ActiveWS: nil,
 		Dir:      dir,
 		Port:     port,
 	}
+	http.HandleFunc("/", s.Static)
+	http.Handle("/ws", websocket.Handler(s.HandleWS))
+	return s
+}
+
+func (s *LiveServer) Listen() error {
+	fmt.Printf("Event log:\n==========\n")
+	return http.ListenAndServe(fmt.Sprintf(":%v", s.Port), nil)
 }
 
 func (s *LiveServer) WatchDir() {
