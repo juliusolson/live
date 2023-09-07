@@ -7,8 +7,11 @@
 ## Usage
 
 ```bash
-go intsall ./cmd/live/
+go install ./cmd/live/
 
-# Defaults: dir: ., port: 8080
-live <dir> <port>
+Usage of live:
+  -dir string
+    	which directory to serve (default ".")
+  -port int
+    	port to bind the server to (default 8080)
 ```
