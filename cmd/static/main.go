@@ -1,12 +1,12 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
 func logStuff(h http.Handler) http.Handler {
@@ -25,30 +25,13 @@ func logStuff(h http.Handler) http.Handler {
 
 func main() {
 
-	args := os.Args[1:]
-	var dir string
 	var port int
-	var err error
+	var dir string
 
-	switch len(args) {
-	case 0:
-		dir = "."
-		port = 8080
-	case 1:
-		port, err = strconv.Atoi(args[0])
-		if err != nil {
-			port = 8080
-			dir = args[0]
-		} else {
-			dir = "."
-		}
-	case 2:
-		dir = args[0]
-		port, err = strconv.Atoi(args[1])
-		if err != nil {
-			log.Fatalf("%v not an int", args[1])
-		}
-	}
+	flag.IntVar(&port, "port", 8080, "port to bind the server to")
+	flag.StringVar(&dir, "dir", ".", "which directory to serve")
+	flag.Parse()
+
 	fs := http.FileServer(http.Dir(dir))
 	http.Handle("/", logStuff(fs))
 
