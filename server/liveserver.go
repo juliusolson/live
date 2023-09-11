@@ -154,18 +154,21 @@ ws.onclose = (event) => {
 }
 
 func (s *LiveServer) Static(w http.ResponseWriter, r *http.Request) {
+	indexPage := "index.html"
 
-	path := r.URL.Path
-	if path == "/" {
-		path += "index.html"
+	fp := filepath.Join(s.Dir, r.URL.Path)
+	stat, err := os.Stat(fp)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if stat.IsDir() {
+		fp = filepath.Join(fp, indexPage)
 	}
 
-	fp := filepath.Join(s.Dir, path)
-
-	fmt.Println(path, fp)
+	fmt.Println(r.URL.Path, fp)
 
 	// TODO: add astro, vue, svelte etc
-	if !strings.HasSuffix(path, "html") {
+	if !strings.HasSuffix(fp, "html") {
 		http.ServeFile(w, r, fp)
 		return
 	}
