@@ -76,7 +76,7 @@ func (s *LiveServer) WatchDir() {
 	}()
 
 	// Add the root and all sub dirs.
-	err = filepath.Walk("/Users/julius/code/scratch/tw/", func(fp string, fi os.FileInfo, err error) error {
+	err = filepath.Walk(s.Dir, func(fp string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
