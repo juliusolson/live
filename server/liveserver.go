@@ -159,7 +159,8 @@ func (s *LiveServer) Static(w http.ResponseWriter, r *http.Request) {
 	fp := filepath.Join(s.Dir, r.URL.Path)
 	stat, err := os.Stat(fp)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return
 	}
 	if stat.IsDir() {
 		fp = filepath.Join(fp, indexPage)
