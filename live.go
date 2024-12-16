@@ -1,4 +1,4 @@
-package server
+package live
 
 import (
 	"fmt"

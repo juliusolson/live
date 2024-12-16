@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/juliusolson/live/server"
+	"github.com/juliusolson/live"
 )
 
 func main() {
@@ -28,7 +28,7 @@ func main() {
 		log.Fatalf("path '%v' does not exist", dir)
 	}
 
-	s := server.New(dir, port)
+	s := live.New(dir, port)
 
 	go s.WatchDir()
 	fmt.Printf("Serving %v on %v\n\n", abspath, port)
