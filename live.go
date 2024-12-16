@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 	"time"
 
@@ -124,14 +123,8 @@ func (s *LiveServer) HandleWS(ws *websocket.Conn) {
 }
 
 func injectSocketReload(s string, port int) string {
-	rx, err := regexp.Compile("</body>")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	oglog := rx.FindStringIndex(s)
-
-	if len(oglog) < 1 {
+	ogloc := strings.Index(s, "</body>")
+	if ogloc < 0 {
 		return s
 	}
 
@@ -150,7 +143,7 @@ ws.onclose = (event) => {
 
     `, port)
 
-	return s[:oglog[0]] + js + s[oglog[0]:]
+	return s[:ogloc] + js + s[ogloc:]
 }
 
 func (s *LiveServer) injector(next http.Handler) http.Handler {
