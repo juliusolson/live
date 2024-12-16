@@ -1,6 +1,6 @@
-module github.com/juliusolson/live 
+module github.com/juliusolson/live
 
-go 1.20
+go 1.22
 
 require (
 	github.com/fsnotify/fsnotify v1.6.0
