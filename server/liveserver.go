@@ -27,7 +27,7 @@ func New(dir string, port int) *LiveServer {
 		Dir:      dir,
 		Port:     port,
 	}
-	http.HandleFunc("/", s.Static)
+	http.Handle("/", s.injector(http.FileServer(http.Dir(dir))))
 	http.Handle("/ws", websocket.Handler(s.HandleWS))
 	return s
 }
@@ -153,32 +153,48 @@ ws.onclose = (event) => {
 	return s[:oglog[0]] + js + s[oglog[0]:]
 }
 
-func (s *LiveServer) Static(w http.ResponseWriter, r *http.Request) {
-	indexPage := "index.html"
+func (s *LiveServer) injector(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fp := filepath.Join(s.Dir, r.URL.Path)
 
-	fp := filepath.Join(s.Dir, r.URL.Path)
-	stat, err := os.Stat(fp)
-	if err != nil {
-		log.Println(err)
-		return
-	}
-	if stat.IsDir() {
-		fp = filepath.Join(fp, indexPage)
-	}
+		// If not exists -> 404
+		fpStat, err := os.Stat(fp)
+		if err != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
 
-	fmt.Println(r.URL.Path, fp)
+		// If not dir and not html
+		if !fpStat.IsDir() && !strings.HasSuffix(r.URL.Path, ".html") {
+			next.ServeHTTP(w, r)
+			return
+		}
 
-	// TODO: add astro, vue, svelte etc
-	if !strings.HasSuffix(fp, "html") {
-		http.ServeFile(w, r, fp)
-		return
-	}
+		// Dir and no index file
+		_, indexErr := os.Stat(filepath.Join(fp, "index.html"))
+		if fpStat.IsDir() && indexErr != nil {
+			next.ServeHTTP(w, r)
+			return
+		}
 
-	f, err := os.Open(fp)
-	if err != nil {
-		log.Fatal(err)
-	}
-	b, _ := io.ReadAll(f)
-	str := injectSocketReload(string(b), s.Port)
-	fmt.Fprint(w, str)
+		// Finally add index.html if dir
+		if fpStat.IsDir() && indexErr == nil {
+			fp = filepath.Join(fp, "index.html")
+		}
+
+		// read, inject and serve
+		f, err := os.Open(fp)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		b, _ := io.ReadAll(f)
+		str := injectSocketReload(string(b), s.Port)
+		_, err = fmt.Fprint(w, str)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+	})
 }
