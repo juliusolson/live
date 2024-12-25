@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"golang.org/x/net/websocket"
@@ -18,6 +17,7 @@ type LiveServer struct {
 	ActiveWS *websocket.Conn
 	Dir      string
 	Port     int
+	conns    map[chan interface{}]interface{}
 }
 
 func New(dir string, port int) *LiveServer {
@@ -25,9 +25,10 @@ func New(dir string, port int) *LiveServer {
 		ActiveWS: nil,
 		Dir:      dir,
 		Port:     port,
+		conns:    make(map[chan interface{}]interface{}),
 	}
 	http.Handle("/", s.injector(http.FileServer(http.Dir(dir))))
-	http.Handle("/ws", websocket.Handler(s.HandleWS))
+	http.HandleFunc("/es", s.Events)
 	return s
 }
 
@@ -61,8 +62,8 @@ func (s *LiveServer) WatchDir() {
 						continue
 					}
 					log.Printf("change detected in file: %v", event.Name)
-					if s.ActiveWS != nil {
-						s.ActiveWS.Write([]byte("reload"))
+					for c := range s.conns {
+						c <- struct{}{}
 					}
 				}
 			case err, ok := <-watcher.Errors:
@@ -95,53 +96,60 @@ func (s *LiveServer) WatchDir() {
 	select {}
 }
 
-func (s *LiveServer) HandleWS(ws *websocket.Conn) {
-	// This is now the active WS
-	s.ActiveWS = ws
+func (s *LiveServer) Events(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
 
-	open := true
-	msg := make([]byte, 0)
-	// Read until close.
-	for open {
-		_, err := ws.Read(msg)
-		if err == io.EOF {
-			open = false
+	ch := make(chan interface{})
+	s.conns[ch] = struct{}{}
+	defer func() {
+		fmt.Println("Deleting channel")
+		close(ch)
+		delete(s.conns, ch)
+	}()
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		panic("not a flusher")
+	}
+	w.WriteHeader(http.StatusOK)
+
+	for {
+		select {
+		case <-r.Context().Done():
+			fmt.Println("done...")
+			return
+		default:
 		}
-		time.Sleep(100 * time.Millisecond)
-	}
 
-	// If no new WS connection - clean up
-	if s.ActiveWS == ws {
-		s.ActiveWS = nil
-	}
-
-	// Clean up
-	err := ws.Close()
-	if err != nil {
-		log.Println(err)
+		<-ch
+		fmt.Fprint(w, "data: reload\n\n")
+		flusher.Flush()
 	}
 }
 
-func injectSocketReload(s string, port int) string {
+func injectEventReload(s string) string {
 	ogloc := strings.Index(s, "</body>")
 	if ogloc < 0 {
 		return s
 	}
 
-	js := fmt.Sprintf(`
+	js := `
 <script>
-let ws = new WebSocket("ws://localhost:%v/ws");
-ws.onmessage = (event) => {window.location.reload(true)}
-ws.onclose = (event) => {
+let es = new EventSource("/es");
+let err = false;
+es.onmessage = (event) => {window.location.reload(true);err=false}
+es.onerror = () => {
+    if (err) { return }
     let b=document.querySelector("body");
     let d = document.createElement("div");
-    d.style.cssText="position:absolute;top:0px;left:0px;width:100%%;height:100%%;background:black;opacity:0.85;display:flex;align-items:center;justify-content:center;color:white;font-size:2em;font-family:monospace;";
+    d.style.cssText="position:absolute;top:0px;left:0px;width:100%;height:100%;background:black;opacity:0.85;display:flex;align-items:center;justify-content:center;color:white;font-size:2em;font-family:monospace;";
     d.textContent="Live Server Disconnected";
     b.appendChild(d);
 }
 </script>
-
-    `, port)
+`
 
 	return s[:ogloc] + js + s[ogloc:]
 }
@@ -182,7 +190,7 @@ func (s *LiveServer) injector(next http.Handler) http.Handler {
 			return
 		}
 		b, _ := io.ReadAll(f)
-		str := injectSocketReload(string(b), s.Port)
+		str := injectEventReload(string(b))
 		_, err = fmt.Fprint(w, str)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
